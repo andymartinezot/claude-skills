@@ -1,0 +1,4 @@
+# Machine-local Claude Code state — never share these.
+# settings.local.json carries absolute paths and per-machine tool permissions.
+.claude/settings.local.json
+.DS_Store
