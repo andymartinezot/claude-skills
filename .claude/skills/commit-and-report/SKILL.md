@@ -215,7 +215,7 @@ not a memory of a past session, not an inferred preference.
 
 ```
 /commit-and-report "Add ALB controller install runbook"
-   → Detects `[HIGG-41615] - <msg>` from history, stages the relevant files,
+   → Detects `[ABCD-41615] - <msg>` from history, stages the relevant files,
      commits, pushes, opens a PR. Ticket inferred from the branch name.
 
 /commit-and-report "add retry to fetch client"

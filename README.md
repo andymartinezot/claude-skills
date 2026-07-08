@@ -73,7 +73,7 @@ Every key is optional; anything omitted is inferred.
 
 Guidelines used across this repo — follow them for anything you add:
 
-1. **No hardcoded specifics.** No company names, ticket prefixes (`HIGG-`, `JIRA-`), absolute paths,
+1. **No hardcoded specifics.** No company names, ticket prefixes (`ABCD-`, `JIRA-`), absolute paths,
    cloud accounts, or team names in the skill body. Detect from the repo or take it as a parameter.
 2. **Discover, don't assume.** Read `git`, existing files, and config before acting. The default
    branch comes from `origin/HEAD`, not a literal `main`.
