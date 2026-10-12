@@ -58,8 +58,12 @@ JSON
 
 echo "== main status line"
 run "1 full payload" "$(full "$T/repo")" "$T/repo"
-for s in "Opus·high" "ctx 63%" '$1.23' "5h 41%" "⏱ 21m" "+120 −8" "cache 3m" "aws 45m" "⎇ main" "↑2" "fix login flow"; do has "full" "$s"; done
+# golden: the exact default line, segment for segment. Change it only on purpose.
+GOLDEN='Opus high │ ctx 63% │ $1.23 │ ⏱ 21m │ +120 −8 │ cache warm 3m │ aws 45m │ repo ⎇ main ↑2 │ fix login flow'
+plain_out="$(sed $'s/\033\\[[0-9;]*m//g' <<<"$OUT")"
+[[ "$plain_out" == "$GOLDEN" ]] && echo "PASS  golden default line" || { echo "FAIL  golden: expected '$GOLDEN'"; fails=$((fails + 1)); }
 lacks "full (1M window ignores exceeds_200k)" "63%!"
+lacks "full (no quota by default)" "5h 41%"
 run "2 {}" '{}'
 run "3 malformed" '{"model":'
 has "malformed" "unparseable"
@@ -72,13 +76,19 @@ run "6c outside git" "{\"workspace\":{\"current_dir\":\"$T/plain\"}}"; has "plai
 run "cache cold" '{"prompt_cache":{"warm":false,"caching_observed":true,"expires_at":null}}'; has "cold" "cache cold"
 run "200k window warning" '{"context_window":{"used_percentage":90,"context_window_size":200000},"exceeds_200k_tokens":true}'; has "200k" "90%!"
 AWS_PROFILE=old run "aws expired" '{}'; has "expired" "aws EXPIRED"
-AWS_PROFILE= run "aws auto, no AWS env" '{}'; lacks "no aws env" "aws"
+AWS_PROFILE= HOME="$T/noaws" run "aws always, none found" '{}'; has "no aws" "no-aws"
+AWS_PROFILE= AWS_CREDENTIAL_EXPIRATION="$(date -u -r $((now + 5520)) +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || date -u -d @$((now + 5520)) +%Y-%m-%dT%H:%M:%SZ)" \
+  HOME="$T/noaws" run "aws from env expiration" '{}'; has "aws env" "aws 1h3"
+run "lines zero still shown" '{"cost":{"total_lines_added":180,"total_lines_removed":0}}'; has "lines zero" "+180 −0"
+run "no lines fields" '{}'; lacks "no lines" "+0"
 COLUMNS=60 run "narrow terminal (60)" "$(full "$T/repo")" "$T/repo"
 w=$("$PY" -c 'import re,sys; print(len(re.sub(r"\033\[[0-9;]*m","",sys.argv[1])))' "$OUT"); [[ $w -le 60 ]] || { echo "FAIL  narrow: $w cols"; fails=$((fails + 1)); }
 has "narrow keeps git" "⎇ main"
 echo '{"segments":["model","context","newline","git"]}' > "$HOME/.claude/statusline.json"
 run "config: two rows" "$(full "$T/repo")" "$T/repo"
 [[ $(wc -l <<<"$OUT") -eq 2 ]] || { echo "FAIL  two rows: got $(wc -l <<<"$OUT")"; fails=$((fails + 1)); }
+echo '{"aws":{"mode":"auto"},"cost_quota":true}' > "$HOME/.claude/statusline.json"
+AWS_PROFILE= run "config: aws auto, quota" "$(full "$T/repo")" "$T/repo"; lacks "aws auto" "aws"; has "quota" "5h 41%"
 echo 'not json' > "$HOME/.claude/statusline.json"
 run "config: broken file" '{}'; has "broken config" "ctx --"
 rm -f "$HOME/.claude/statusline.json"

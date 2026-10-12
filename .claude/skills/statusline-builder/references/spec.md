@@ -6,6 +6,7 @@ Field names come from the official schema: https://code.claude.com/docs/en/statu
 
 ## Hard requirements
 
+- ✓ **Deterministic default.** With no `~/.claude/statusline.json`, the output is the standard line in `segments.md`, segment for segment. The golden test in `test.sh` pins it; change it there, in `SKILL.md` and in `segments.md` together.
 - ✓ **Never blank.** A non-zero exit or empty stdout blanks the status line. Catch every exception, always print something, always exit 0. The subagent script is the exception that proves the rule: printing nothing there means "default rows", which is the right fallback.
 - ✓ **Any field can be missing or null**, especially before the first API response. Absent data hides its segment. Never show a fake `0`.
 - **Fast.** It runs on every assistant message, and every `refreshInterval` tick. Git calls get short timeouts and use `git status --porcelain -uno`. No network calls.
@@ -29,7 +30,7 @@ Field names come from the official schema: https://code.claude.com/docs/en/statu
 
 ## Test cases (`scripts/test.sh`)
 
-1. ✓ A realistic full payload — every default segment renders.
+1. ✓ A realistic full payload — every default segment renders, and the plain-text line equals the golden line exactly.
 2. ✓ `{}`
 3. ✓ Malformed JSON.
 4. ✓ Empty stdin.
@@ -37,4 +38,4 @@ Field names come from the official schema: https://code.claude.com/docs/en/statu
 6. ✓ Inside a git repo (ahead of upstream → `↑2`), a repo never pushed (`↑?`), and outside git (`no-git`).
 7. ✓ A `tasks` payload with one running, one completed and one id-less task: the running row renders, the completed one is hidden, the id-less one is left to the default.
 
-Plus: cache cold, the ≤200k warning, AWS expired and AWS hidden with no AWS env, a narrow terminal (fits, keeps git), a two-row config, a broken config file, and hostile subagent input.
+Plus: cache cold, the ≤200k warning, AWS expired, `no-aws` when nothing is found, AWS from `AWS_CREDENTIAL_EXPIRATION`, `+180 −0` (zero removed still shown), no `lines` fields, a narrow terminal (fits, keeps git), a two-row config, `aws.mode: auto` + `cost_quota` config, a broken config file, and hostile subagent input.

@@ -1,42 +1,41 @@
 ---
 name: statusline-builder
-description: Install, customize, update or repair a Claude Code status line from the bundled, tested scripts — model, context %, cost and 5h quota, session time, lines changed, prompt-cache countdown, AWS credential expiry, live subagents, git branch with ahead/behind, session name — plus per-subagent rows. Asks which segments to show, writes ~/.claude/statusline.json and settings.json (with a backup), then proves it renders. Trigger on `/statusline-builder`, "set up my status line", "add X to the status bar", "my status line is blank", or when replicating the status line on a new machine.
+description: Install, update or repair the standard Claude Code status line from the bundled, tested scripts. Always produces the same single row — model + effort, context %, cost, session time, lines changed, prompt-cache countdown, AWS credential expiry, git branch, session name — plus per-subagent rows. No questions: installs the default, patches settings.json (with a backup), then proves it renders. Trigger on `/statusline-builder`, "set up my status line", "add X to the status bar", "my status line is blank", or when replicating the status line on a new machine.
 ---
 
 # Status line builder
 
-Installs two bundled scripts and one config file, then proves they work. The scripts are the product; don't rewrite them from scratch. Customization goes in `~/.claude/statusline.json`, never into the scripts, so updates stay a plain copy.
+Installs two bundled scripts, then proves they work. The output is **deterministic**: every install renders the same line, in this order, with no questions asked:
+
+```
+Opus 5.5 high │ ctx 13% │ $3.62 │ ⏱ 78h09m │ +180 −0 │ cache cold │ aws 1h37m │ no-git │ ticket-validator-session
+```
+
+`references/segments.md` has the reference card: every segment, each state it can show, its colours and the payload field it reads. `scripts/test.sh` pins this exact line as a golden test, so a format change has to be deliberate.
+
+The scripts are the product; don't rewrite them from scratch, and don't hand-write a status line command instead. Customization is opt-in: only when the user explicitly asks for something different does it go in `~/.claude/statusline.json` — never into the scripts, so updates stay a plain copy.
 
 | File | Installed to |
 |---|---|
 | `scripts/statusline.py` | `~/.claude/statusline.py` |
 | `scripts/statusline-subagent.py` | `~/.claude/statusline-subagent.py` |
-| (written by step 3) | `~/.claude/statusline.json` |
+| (only if the user asks to customize) | `~/.claude/statusline.json` |
 
-`references/segments.md` is the segment menu (what each shows, which fields it reads, when it hides). `references/spec.md` is the contract the scripts must keep — read it before changing either script.
+`references/spec.md` is the contract the scripts must keep — read it before changing either script.
 
 ## 1. Pre-flight (read-only, in parallel)
 
 - `claude --version`. Below 2.1.251 there is no `prompt_cache` (cache segment stays hidden); below 2.1.205 subagent rows have no model or context %.
 - The interpreter: `/usr/bin/python3` on macOS, otherwise `command -v python3`. Use it by **absolute path** — the status line shell does not get the interactive PATH. Needs Python 3.9+.
 - Current state: the `statusLine` and `subagentStatusLine` keys of `~/.claude/settings.json`, and whether `~/.claude/statusline.py`, `statusline-subagent.py` and `statusline.json` exist.
-- If the installed scripts exist, `diff` them against the bundled ones. Same: this is a config-only change. Different and not from this skill (no `~/.claude/statusline.json` alongside, or a different structure): show the user what would be replaced and ask before going on.
+- If the installed scripts exist, `diff` them against the bundled ones. A different status line command that isn't from this skill (a hand-written one-liner or another script) is replaced — the backup in step 2 keeps it; tell the user it was replaced.
+- An existing `~/.claude/statusline.json` changes the output. Show its contents and ask once whether to keep it or remove it (removing it restores the standard line). This is the only question the skill asks.
 
-## 2. Choose segments
-
-One `AskUserQuestion` round (multiSelect). Propose the current `segments` from `statusline.json` when it exists, otherwise the defaults. Take the options from `references/segments.md`. `model`, `context` and `git` are always on; ask about the rest:
-
-- **Usage:** cost / 5h quota, session duration, lines changed
-- **Freshness:** prompt-cache countdown, AWS credential expiry
-- **Activity:** live subagent count, session name
-
-Then, only if relevant: one row or two (a `newline` entry starts the second row), and for AWS whether to show it only when AWS is in use (`auto`, default), always, or never. Don't ask about thresholds; mention they're in the config.
-
-## 3. Install
+## 2. Install
 
 1. **Back up** `~/.claude/settings.json` to `settings.json.bak-<YYYYMMDD-HHMMSS>`, and any script that will be replaced to `<name>.bak-<ts>`.
 2. Copy both scripts to `~/.claude/` and `chmod +x` them.
-3. Write `~/.claude/statusline.json` with only the keys the user changed from the defaults (`segments`, and `aws.mode` if not `auto`). An omitted key falls back to the defaults in `statusline.py`. A broken file falls back too; it never blanks the line.
+3. Don't write `~/.claude/statusline.json`. The defaults in `statusline.py` are the standard line. Write it only when the user asked for a change, with only the changed keys (see **Changing it** below).
 4. Patch `~/.claude/settings.json` by **loading, modifying and dumping JSON** — never a text edit. Keep every existing key, and confirm afterwards that the key set is unchanged apart from these two:
 
    ```json
@@ -44,21 +43,22 @@ Then, only if relevant: one row or two (a `newline` entry starts the second row)
    "subagentStatusLine": {"type": "command", "command": "<python> ~/.claude/statusline-subagent.py"}
    ```
 
-   `refreshInterval` keeps the cache and AWS countdowns current while the session is idle; drop it if neither segment is on. Keep a `padding` the user already had.
+   `refreshInterval` keeps the cache and AWS countdowns current while the session is idle. Keep a `padding` the user already had.
 
-## 4. Verify before saying it works
+## 3. Verify before saying it works
 
-1. `bash scripts/test.sh` (from this skill's directory). It runs every case in `references/spec.md` against a throwaway HOME and throwaway repos — no real credentials or settings are read. Show its output. Any FAIL: fix the script, not the test, unless the test is wrong, and say which.
+1. `bash scripts/test.sh` (from this skill's directory). It runs every case in `references/spec.md` against a throwaway HOME and throwaway repos — no real credentials or settings are read — and checks the exact default line (golden test). Show the PASS/FAIL summary. Any FAIL: fix the script, not the test, unless the test is wrong, and say which.
 2. Render the installed script on the last real payload, if there is one: `<python> ~/.claude/statusline.py < /tmp/statusline-last-input.json`.
 3. After your next reply renders the status line for real, read `/tmp/statusline-last-input.json` (and the subagent dump, if a subagent ran). Confirm each field the chosen segments use is present, using `references/segments.md`. Don't print paths or the transcript location back to the user — field names only.
 
-Report: segments on, the backup paths, test result, and anything hidden for a known reason (e.g. no `rate_limits` on this provider).
+Report: the rendered line (ANSI stripped), the backup paths, the test result, and any segment showing a fallback state (`no-aws`, `aws EXPIRED`, `no-git`, `ctx --`) with the reason from the reference card.
 
-## Changing or repairing it later
+## Changing it (only when asked)
 
-- **Add / remove / reorder a segment:** edit `segments` in `~/.claude/statusline.json`. No script change, no restart; it applies on the next render.
+- **Add / remove / reorder a segment, a second row, the 5h quota, AWS only when in use:** write those keys in `~/.claude/statusline.json` (keys in `references/segments.md`). No script change, no restart; it applies on the next render.
+- **Back to the standard line:** delete `~/.claude/statusline.json`.
 - **Blank status line:** run the `statusLine` command by hand on `/tmp/statusline-last-input.json`; check the interpreter path exists; `claude --debug` logs the script's stderr.
-- **A new segment:** add it to `scripts/statusline.py` in this repo (a `seg_<name>` function plus its `SEGMENTS` entry), add a case to `scripts/test.sh` and a row to `references/segments.md`, run the tests, then re-install with this skill.
+- **A new segment or a change to the standard line:** edit `scripts/statusline.py` in this repo (a `seg_<name>` function plus its `SEGMENTS` entry), update the golden line in `scripts/test.sh`, the example at the top of this file and the reference card in `references/segments.md`, run the tests, then re-install with this skill.
 
 ## Guardrails
 

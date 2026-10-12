@@ -16,7 +16,7 @@ into any project (or install it user-wide) and it works without editing.
 | `drawio` | Create/edit draw.io diagrams and export to PNG/SVG/PDF. |
 | `ascii-visualizer` | Terminal-rendered ASCII diagrams, box-drawing layouts, swimlanes. |
 | `terraform-module-builder` | Generate production-ready reusable Terraform modules. |
-| `statusline-builder` | Install or customize a tested Claude Code status line (cost, cache countdown, AWS expiry, git ahead/behind, subagent rows) from bundled scripts, then prove it renders. |
+| `statusline-builder` | Install the standard Claude Code status line (always the same layout — see below) from bundled, tested scripts, then prove it renders. |
 
 ## Install
 
@@ -48,6 +48,34 @@ Copy or symlink any skill directory into a `.claude/skills/` folder:
 ```bash
 ln -s "$PWD/.claude/skills/adr" ~/.claude/skills/adr
 ```
+
+## Status line (`statusline-builder`)
+
+Every install renders the same line:
+
+```
+Opus 5.5 high │ ctx 13% │ $3.62 │ ⏱ 78h09m │ +180 −0 │ cache cold │ aws 1h37m │ no-git │ ticket-validator-session
+```
+
+| Segment | Example | Meaning |
+|---|---|---|
+| model | `Opus 5.5 high` | Model and effort level |
+| context | `ctx 13%` | Context window used: green < 50 %, yellow < 80 %, red after |
+| cost | `$3.62` | Session cost |
+| duration | `⏱ 78h09m` | Session wall-clock time |
+| lines | `+180 −0` | Lines added / removed |
+| cache | `cache warm 58m` / `cache cold` | Time until the prompt cache expires |
+| aws | `aws 1h37m` / `aws EXPIRED` / `no-aws` | Time until the AWS credentials expire |
+| git | `repo ⎇ main* ↑2` / `no-git` | Repo, branch, dirty mark, ahead / behind |
+| session | `ticket-validator-session` | Session name (`/rename`) |
+
+To set it up after cloning:
+
+```bash
+./install.sh statusline-builder   # then restart Claude Code
+```
+
+and run `/statusline-builder` in Claude Code. It backs up `~/.claude/settings.json`, installs the scripts, runs the tests and shows the rendered line. Every state, colour and payload field is in [`references/segments.md`](.claude/skills/statusline-builder/references/segments.md); requirements: Claude Code ≥ 2.1.251 and Python 3.9+.
 
 ## Configuring `commit-and-report`
 

@@ -1,16 +1,20 @@
 #!/usr/bin/env python3
 """Claude Code status line.
 
-Segments (pick and order them in ~/.claude/statusline.json, see DEFAULTS):
-  model    model name, ·fast, effort when not medium
+Default output (one row, always this order):
+
+  Opus 5.5 high │ ctx 13% │ $3.62 │ ⏱ 78h09m │ +180 −0 │ cache cold │ aws 1h37m │ no-git │ session-name
+
+Segments (DEFAULTS["segments"] is the default line; override in ~/.claude/statusline.json):
+  model    model name, fast, effort level
   context  ctx NN%, green / yellow / red
-  cost     session cost, plus the 5-hour quota when the provider sends it
+  cost     session cost (5-hour quota only with "cost_quota": true)
   duration session wall-clock time
   lines    lines added / removed this session
-  cache    prompt cache: minutes until it goes cold, or "cold"
-  aws      minutes until the active AWS credentials expire
-  agents   live subagent count (best-effort, see live_agents)
-  git      repo, branch, dirty mark, ahead / behind upstream
+  cache    prompt cache: "cache warm 58m" until it goes cold, or "cache cold"
+  aws      time until the active AWS credentials expire, or "no-aws"
+  agents   live subagent count (best-effort, off by default)
+  git      repo, branch, dirty mark, ahead / behind upstream, or "no-git"
   session  session name
   newline  pseudo-segment: start a second row
 
@@ -37,15 +41,16 @@ CONFIG = os.path.expanduser("~/.claude/statusline.json")
 DUMP = os.environ.get("STATUSLINE_DUMP", "/tmp/statusline-last-input.json")  # tests redirect it
 
 DEFAULTS = {
-    "segments": ["model", "context", "cost", "duration", "lines", "cache", "aws", "agents", "git", "session"],
+    "segments": ["model", "context", "cost", "duration", "lines", "cache", "aws", "git", "session"],
     # dropped first-to-last while the row is wider than the terminal
     "drop_order": ["session", "lines", "duration", "agents", "cost", "cache", "aws"],
     "branch_max": 28,
     "session_max": 24,
     "agent_fresh_secs": 45,   # a log touched more recently than this = agent still working
     "cache_warn_secs": 120,   # cache countdown turns yellow below this
+    "cost_quota": False,      # true: append "· 5h NN%" when the provider sends rate_limits
     "aws": {
-        "mode": "auto",       # auto: only when CLAUDE_CODE_USE_BEDROCK or AWS_PROFILE is set | always | off
+        "mode": "always",     # always: "no-aws" when no expiry is found | auto: only with CLAUDE_CODE_USE_BEDROCK or AWS_PROFILE | off
         "warn_secs": 3600,
         "crit_secs": 600,
     },
@@ -55,6 +60,8 @@ DEFAULTS = {
 DIM = "\033[2m"
 RESET = "\033[0m"
 CYAN = "\033[36m"
+SKY = "\033[38;5;75m"
+GRAY = "\033[90m"
 GREEN = "\033[32m"
 YELLOW = "\033[33m"
 RED = "\033[31m"
@@ -115,12 +122,12 @@ def truncate(s, n):
 def seg_model(d, cfg):
     m = d.get("model") or {}
     name = m.get("display_name") or m.get("id") or "?"
-    s = f"{CYAN}{name}{RESET}"
+    s = f"{SKY}{name}{RESET}"
     if d.get("fast_mode"):
-        s += f"{DIM}·fast{RESET}"
+        s += f" {GRAY}fast{RESET}"
     eff = (d.get("effort") or {}).get("level")
-    if eff and eff != "medium":
-        s += f"{DIM}·{eff}{RESET}"
+    if eff:
+        s += f" {GRAY}{eff}{RESET}"
     return s
 
 
@@ -143,9 +150,9 @@ def seg_cost(d, cfg):
     bits = []
     cost = (d.get("cost") or {}).get("total_cost_usd")
     if isinstance(cost, (int, float)):
-        bits.append(f"{DIM}${cost:.2f}{RESET}")
+        bits.append(f"{GRAY}${cost:.2f}{RESET}")
     q = ((d.get("rate_limits") or {}).get("five_hour") or {}).get("used_percentage")
-    if isinstance(q, (int, float)):  # absent on some providers (e.g. Bedrock)
+    if cfg.get("cost_quota") and isinstance(q, (int, float)):  # absent on some providers (e.g. Bedrock)
         colour = DIM if q < 60 else (YELLOW if q < 85 else RED)
         bits.append(f"{colour}5h {q:.0f}%{RESET}")
     return f"{DIM} · {RESET}".join(bits) or None
@@ -153,18 +160,18 @@ def seg_cost(d, cfg):
 
 def seg_duration(d, cfg):
     ms = (d.get("cost") or {}).get("total_duration_ms")
-    if not isinstance(ms, (int, float)) or ms < 60_000:
+    if not isinstance(ms, (int, float)):
         return None
-    return f"{DIM}⏱ {fmt_secs(ms / 1000)}{RESET}"
+    return f"{GRAY}⏱ {fmt_secs(ms / 1000)}{RESET}"
 
 
 def seg_lines(d, cfg):
     c = d.get("cost") or {}
     add, rem = c.get("total_lines_added"), c.get("total_lines_removed")
+    if not isinstance(add, int) and not isinstance(rem, int):
+        return None  # field absent: don't invent a 0
     add = add if isinstance(add, int) else 0
     rem = rem if isinstance(rem, int) else 0
-    if not add and not rem:
-        return None
     return f"{GREEN}+{add}{RESET} {RED}−{rem}{RESET}"
 
 
@@ -177,8 +184,8 @@ def seg_cache(d, cfg):
         left = exp - time.time()
         if left > 0:
             colour = GREEN if left >= cfg["cache_warn_secs"] else YELLOW
-            return f"{colour}cache {fmt_secs(left)}{RESET}"
-    return f"{BLUE}cache cold{RESET}"
+            return f"{colour}cache warm {fmt_secs(left)}{RESET}"
+    return f"{YELLOW}cache cold{RESET}"
 
 
 def _parse_expiry(v):
@@ -236,16 +243,18 @@ def _sso_expiry():
 
 def seg_aws(d, cfg):
     a = cfg["aws"]
-    mode = a.get("mode", "auto")
+    mode = a.get("mode", "always")
     if mode == "off":
         return None
     profile = os.environ.get("AWS_PROFILE") or os.environ.get("AWS_DEFAULT_PROFILE")
     bedrock = str(os.environ.get("CLAUDE_CODE_USE_BEDROCK", "")).lower() in ("1", "true")
     if mode == "auto" and not (bedrock or profile):
         return None
-    exp = _profile_expiry(profile or "default") or _sso_expiry()
+    env_exp = os.environ.get("AWS_CREDENTIAL_EXPIRATION")  # set by aws-vault, granted, etc.
+    exp = (_parse_expiry(env_exp) if env_exp else None) or _profile_expiry(profile or "default") or _sso_expiry()
     if exp is None:
-        return None  # static keys, or a credential source with no expiry
+        # static keys, or no AWS at all
+        return f"{GRAY}no-aws{RESET}" if mode == "always" else None
     left = exp - time.time()
     if left <= 0:
         return f"{RED}aws EXPIRED{RESET}"
@@ -281,7 +290,7 @@ def seg_agents(d, cfg):
 def seg_git(d, cfg):
     cwd = (d.get("workspace") or {}).get("current_dir") or d.get("cwd") or os.getcwd()
     if sh([GIT, "-C", cwd, "rev-parse", "--is-inside-work-tree"]) != "true":
-        return f"{DIM}no-git{RESET}"
+        return f"{GRAY}no-git{RESET}"
     branch = sh([GIT, "-C", cwd, "rev-parse", "--abbrev-ref", "HEAD"]) or "?"
     detached = branch == "HEAD"
     if detached:
@@ -311,7 +320,7 @@ def seg_session(d, cfg):
     name = d.get("session_name")
     if not name:
         return None
-    return f"{DIM}{truncate(str(name), cfg['session_max'])}{RESET}"
+    return f"{GRAY}{truncate(str(name), cfg['session_max'])}{RESET}"
 
 
 SEGMENTS = {
@@ -319,7 +328,7 @@ SEGMENTS = {
     "duration": seg_duration, "lines": seg_lines, "cache": seg_cache,
     "aws": seg_aws, "agents": seg_agents, "git": seg_git, "session": seg_session,
 }
-SEP = f" {DIM}│{RESET} "
+SEP = f" {GRAY}│{RESET} "
 
 
 def visible_len(s):
