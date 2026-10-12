@@ -16,6 +16,7 @@ into any project (or install it user-wide) and it works without editing.
 | `drawio` | Create/edit draw.io diagrams and export to PNG/SVG/PDF. |
 | `ascii-visualizer` | Terminal-rendered ASCII diagrams, box-drawing layouts, swimlanes. |
 | `terraform-module-builder` | Generate production-ready reusable Terraform modules. |
+| `statusline-builder` | Install or customize a tested Claude Code status line (cost, cache countdown, AWS expiry, git ahead/behind, subagent rows) from bundled scripts, then prove it renders. |
 
 ## Install
 
