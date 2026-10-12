@@ -10,8 +10,8 @@ into any project (or install it user-wide) and it works without editing.
 |-------|--------------|
 | `commit-and-report` | Branch → commit → push → PR → rebase → merge lifecycle. Detects the repo's own branch/commit/ticket conventions; never merges without explicit confirmation. |
 | `adr` | Append an Architecture Decision Record to `DECISIONS.md`. |
-| `handoff` | Write an end-of-session log to `docs/sessions/`. |
-| `resume` | Read the latest session log + decisions index to get oriented at the start of a session. |
+| `handoff` | Write an end-of-session log to `docs/sessions/` for the next `/resume-handoff`. |
+| `resume-handoff` | Start-of-session orientation, the counterpart of `handoff`: reads STATUS.md, the latest session log, the decisions index and git state. |
 | `goal` | Autonomous, plan-first, self-verifying execution mode for a single shipping task. |
 | `drawio` | Create/edit draw.io diagrams and export to PNG/SVG/PDF. |
 | `ascii-visualizer` | Terminal-rendered ASCII diagrams, box-drawing layouts, swimlanes. |
@@ -32,7 +32,7 @@ git clone <this-repo> ~/src/claude-skills
 cd ~/src/claude-skills
 
 ./install.sh                       # all skills, user-wide (~/.claude/skills)
-./install.sh adr handoff resume    # only these
+./install.sh adr handoff resume-handoff    # only these
 ./install.sh --project ~/code/app  # into that repo's .claude/skills instead
 ./install.sh --list                # show available + install status
 ./install.sh --uninstall           # remove symlinks pointing back into this repo

@@ -4,7 +4,7 @@
 # Symlinks (not copies) so `git pull` here updates every install.
 #
 #   ./install.sh                        # install all skills for the current user (~/.claude/skills)
-#   ./install.sh adr handoff resume     # install only these
+#   ./install.sh adr handoff resume-handoff     # install only these
 #   ./install.sh --project ~/code/app   # install into that repo's .claude/skills instead
 #   ./install.sh --list                 # show what's available and what's installed
 #   ./install.sh --uninstall            # remove symlinks that point back into this repo
