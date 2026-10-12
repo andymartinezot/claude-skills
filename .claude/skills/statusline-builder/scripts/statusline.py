@@ -3,12 +3,13 @@
 
 Default output (one row, always this order):
 
-  Opus 5.5 high │ ctx 13% │ $3.62 │ ⏱ 78h09m │ +180 −0 │ cache cold │ aws 1h37m │ no-git │ session-name
+  Opus 5.5 high │ ctx 13% │ $3.62 │ usage 7% ↻3h05m │ ⏱ 78h09m │ +180 −0 │ cache cold │ aws 1h37m │ no-git │ session-name
 
 Segments (DEFAULTS["segments"] is the default line; override in ~/.claude/statusline.json):
   model    model name, fast, effort level
   context  ctx NN%, green / yellow / red
-  cost     session cost (5-hour quota only with "cost_quota": true)
+  cost     session cost
+  usage    plan usage for the current session (5-hour window) and time to reset, as /usage shows
   duration session wall-clock time
   lines    lines added / removed this session
   cache    prompt cache: "cache warm 58m" until it goes cold, or "cache cold"
@@ -41,14 +42,14 @@ CONFIG = os.path.expanduser("~/.claude/statusline.json")
 DUMP = os.environ.get("STATUSLINE_DUMP", "/tmp/statusline-last-input.json")  # tests redirect it
 
 DEFAULTS = {
-    "segments": ["model", "context", "cost", "duration", "lines", "cache", "aws", "git", "session"],
+    "segments": ["model", "context", "cost", "usage", "duration", "lines", "cache", "aws", "git", "session"],
     # dropped first-to-last while the row is wider than the terminal
-    "drop_order": ["session", "lines", "duration", "agents", "cost", "cache", "aws"],
+    "drop_order": ["session", "lines", "duration", "agents", "cost", "usage", "cache", "aws"],
     "branch_max": 28,
     "session_max": 24,
     "agent_fresh_secs": 45,   # a log touched more recently than this = agent still working
     "cache_warn_secs": 120,   # cache countdown turns yellow below this
-    "cost_quota": False,      # true: append "· 5h NN%" when the provider sends rate_limits
+    "usage_week": False,      # true: also show the weekly limit, "· wk NN%"
     "aws": {
         "mode": "always",     # always: "no-aws" when no expiry is found | auto: only with CLAUDE_CODE_USE_BEDROCK or AWS_PROFILE | off
         "warn_secs": 3600,
@@ -147,15 +148,31 @@ def seg_context(d, cfg):
 
 
 def seg_cost(d, cfg):
-    bits = []
     cost = (d.get("cost") or {}).get("total_cost_usd")
-    if isinstance(cost, (int, float)):
-        bits.append(f"{GRAY}${cost:.2f}{RESET}")
-    q = ((d.get("rate_limits") or {}).get("five_hour") or {}).get("used_percentage")
-    if cfg.get("cost_quota") and isinstance(q, (int, float)):  # absent on some providers (e.g. Bedrock)
-        colour = DIM if q < 60 else (YELLOW if q < 85 else RED)
-        bits.append(f"{colour}5h {q:.0f}%{RESET}")
-    return f"{DIM} · {RESET}".join(bits) or None
+    if not isinstance(cost, (int, float)):
+        return None
+    return f"{GRAY}${cost:.2f}{RESET}"
+
+
+def _usage_colour(pct):
+    return GRAY if pct < 60 else (YELLOW if pct < 85 else RED)
+
+
+def seg_usage(d, cfg):
+    """Plan usage, as /usage shows it: the current session (5-hour window)."""
+    rl = d.get("rate_limits") or {}  # absent on some providers (e.g. Bedrock)
+    five = rl.get("five_hour") or {}
+    pct = five.get("used_percentage")
+    if not isinstance(pct, (int, float)):
+        return None
+    out = f"{_usage_colour(pct)}usage {pct:.0f}%{RESET}"
+    reset = five.get("resets_at")
+    if isinstance(reset, (int, float)) and reset > time.time():
+        out += f" {GRAY}↻{fmt_secs(reset - time.time())}{RESET}"
+    week = (rl.get("seven_day") or {}).get("used_percentage")
+    if cfg.get("usage_week") and isinstance(week, (int, float)):
+        out += f" {GRAY}·{RESET} {_usage_colour(week)}wk {week:.0f}%{RESET}"
+    return out
 
 
 def seg_duration(d, cfg):
@@ -324,7 +341,7 @@ def seg_session(d, cfg):
 
 
 SEGMENTS = {
-    "model": seg_model, "context": seg_context, "cost": seg_cost,
+    "model": seg_model, "context": seg_context, "cost": seg_cost, "usage": seg_usage,
     "duration": seg_duration, "lines": seg_lines, "cache": seg_cache,
     "aws": seg_aws, "agents": seg_agents, "git": seg_git, "session": seg_session,
 }

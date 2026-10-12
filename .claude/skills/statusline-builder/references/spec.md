@@ -38,4 +38,4 @@ Field names come from the official schema: https://code.claude.com/docs/en/statu
 6. ✓ Inside a git repo (ahead of upstream → `↑2`), a repo never pushed (`↑?`), and outside git (`no-git`).
 7. ✓ A `tasks` payload with one running, one completed and one id-less task: the running row renders, the completed one is hidden, the id-less one is left to the default.
 
-Plus: cache cold, the ≤200k warning, AWS expired, `no-aws` when nothing is found, AWS from `AWS_CREDENTIAL_EXPIRATION`, `+180 −0` (zero removed still shown), no `lines` fields, a narrow terminal (fits, keeps git), a two-row config, `aws.mode: auto` + `cost_quota` config, a broken config file, and hostile subagent input.
+Plus: cache cold, the ≤200k warning, AWS expired, `no-aws` when nothing is found, AWS from `AWS_CREDENTIAL_EXPIRATION`, `+180 −0` (zero removed still shown), no `lines` fields, a narrow terminal (fits, keeps git), a two-row config, usage hidden without `rate_limits`, usage with no reset time, `aws.mode: auto` + `usage_week` config, a broken config file, and hostile subagent input.

@@ -1,6 +1,6 @@
 ---
 name: statusline-builder
-description: Install, update or repair the standard Claude Code status line from the bundled, tested scripts. Always produces the same single row — model + effort, context %, cost, session time, lines changed, prompt-cache countdown, AWS credential expiry, git branch, session name — plus per-subagent rows. No questions: installs the default, patches settings.json (with a backup), then proves it renders. Trigger on `/statusline-builder`, "set up my status line", "add X to the status bar", "my status line is blank", or when replicating the status line on a new machine.
+description: Install, update or repair the standard Claude Code status line from the bundled, tested scripts. Always produces the same single row — model + effort, context %, cost, plan usage for the current session (as /usage shows), session time, lines changed, prompt-cache countdown, AWS credential expiry, git branch, session name — plus per-subagent rows. No questions: installs the default, patches settings.json (with a backup), then proves it renders. Trigger on `/statusline-builder`, "set up my status line", "add X to the status bar", "my status line is blank", or when replicating the status line on a new machine.
 ---
 
 # Status line builder
@@ -8,7 +8,7 @@ description: Install, update or repair the standard Claude Code status line from
 Installs two bundled scripts, then proves they work. The output is **deterministic**: every install renders the same line, in this order, with no questions asked:
 
 ```
-Opus 5.5 high │ ctx 13% │ $3.62 │ ⏱ 78h09m │ +180 −0 │ cache cold │ aws 1h37m │ no-git │ ticket-validator-session
+Opus 5.5 high │ ctx 13% │ $3.62 │ usage 7% ↻3h05m │ ⏱ 78h09m │ +180 −0 │ cache cold │ aws 1h37m │ no-git │ ticket-validator-session
 ```
 
 `references/segments.md` has the reference card: every segment, each state it can show, its colours and the payload field it reads. `scripts/test.sh` pins this exact line as a golden test, so a format change has to be deliberate.
@@ -51,11 +51,11 @@ The scripts are the product; don't rewrite them from scratch, and don't hand-wri
 2. Render the installed script on the last real payload, if there is one: `<python> ~/.claude/statusline.py < /tmp/statusline-last-input.json`.
 3. After your next reply renders the status line for real, read `/tmp/statusline-last-input.json` (and the subagent dump, if a subagent ran). Confirm each field the chosen segments use is present, using `references/segments.md`. Don't print paths or the transcript location back to the user — field names only.
 
-Report: the rendered line (ANSI stripped), the backup paths, the test result, and any segment showing a fallback state (`no-aws`, `aws EXPIRED`, `no-git`, `ctx --`) with the reason from the reference card.
+Report: the rendered line (ANSI stripped), the backup paths, the test result, and any segment showing a fallback state or hidden for a known reason (`no-aws`, no `usage` on a provider without `rate_limits`, `aws EXPIRED`, `no-git`, `ctx --`) with the reason from the reference card.
 
 ## Changing it (only when asked)
 
-- **Add / remove / reorder a segment, a second row, the 5h quota, AWS only when in use:** write those keys in `~/.claude/statusline.json` (keys in `references/segments.md`). No script change, no restart; it applies on the next render.
+- **Add / remove / reorder a segment, a second row, the weekly usage limit, AWS only when in use:** write those keys in `~/.claude/statusline.json` (keys in `references/segments.md`). No script change, no restart; it applies on the next render.
 - **Back to the standard line:** delete `~/.claude/statusline.json`.
 - **Blank status line:** run the `statusLine` command by hand on `/tmp/statusline-last-input.json`; check the interpreter path exists; `claude --debug` logs the script's stderr.
 - **A new segment or a change to the standard line:** edit `scripts/statusline.py` in this repo (a `seg_<name>` function plus its `SEGMENTS` entry), update the golden line in `scripts/test.sh`, the example at the top of this file and the reference card in `references/segments.md`, run the tests, then re-install with this skill.
