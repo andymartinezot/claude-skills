@@ -3,8 +3,8 @@
 The standard line — what every install of this skill renders, left to right:
 
 ```
-Opus 5.5 high │ ctx 13% │ $3.62 │ usage 7% ↻3h05m │ ⏱ 78h09m │ +180 −0 │ cache cold │ aws 1h37m │ no-git │ ticket-validator-session
-└─ model ───┘   context   cost    └── usage ───┘    duration   lines     cache        aws         git      session
+Opus 5.5 high │ ctx 13% │ $3.62 │ usage 7% ↻3h05m · wk 1% │ ⏱ 78h09m │ +180 −0 │ cache cold │ aws 1h37m │ no-git │ ticket-validator-session
+└─ model ───┘   context   cost    └───────── usage ──────────┘    duration   lines     cache        aws         git      session
 ```
 
 Default order: `model, context, cost, usage, duration, lines, cache, aws, git, session`. `scripts/test.sh` checks this exact format (golden test). A segment whose payload field is absent hides itself; nothing renders as a fake `0`.
@@ -16,7 +16,7 @@ Default order: `model, context, cost, usage, duration, lines, cache, aws, git, s
 | 1 | `model` | `Opus 5.5 high` | name in sky blue; `fast` and the effort level (`low`, `medium`, `high`, …) in gray | `model.display_name`, `fast_mode`, `effort.level` | never (`?` if absent) |
 | 2 | `context` | `ctx 13%` | green < 50 %, yellow < 80 %, red ≥ 80 %; red `!` past 200k on a ≤ 200k window; `ctx --` before the first response | `context_window.used_percentage`, `.context_window_size`, `exceeds_200k_tokens` | never |
 | 3 | `cost` | `$3.62` | gray | `cost.total_cost_usd` | field absent |
-| 4 | `usage` | `usage 7% ↻3h05m` | the **Current session** figure from `/usage` (5-hour window): gray < 60 %, yellow < 85 %, red; `↻` time until it resets; with `"usage_week": true` also `· wk 12%` (**Current week**) | `rate_limits.five_hour.used_percentage`, `.five_hour.resets_at`, `.seven_day.used_percentage` | provider sends no `rate_limits` (API key, Bedrock, Vertex), or before the first response |
+| 4 | `usage` | `usage 7% ↻3h05m · wk 1%` | `/usage` in one segment: **Current session** (5-hour window) %, `↻` time until it resets, then **Current week** as `wk NN%`. Each % is gray < 60, yellow < 85, red ≥ 85. `"usage_week": false` hides the weekly part | `rate_limits.five_hour.used_percentage`, `.five_hour.resets_at`, `.seven_day.used_percentage` | provider sends no `rate_limits` (API key, Bedrock, Vertex), or before the first response; each part hides on its own |
 | 5 | `duration` | `⏱ 78h09m` | gray; `45s`, `21m`, `1h02m` | `cost.total_duration_ms` | field absent |
 | 6 | `lines` | `+180 −0` | added green, removed red; zeros shown | `cost.total_lines_added`, `.total_lines_removed` | both fields absent |
 | 7 | `cache` | `cache warm 58m` / `cache cold` | warm green, yellow under 2 m; `cache cold` yellow | `prompt_cache.warm`, `.expires_at`, `.caching_observed` | before the first response, or the provider doesn't report caching |
@@ -35,7 +35,7 @@ Separator: ` │ ` in gray.
 | `ctx --` | No API response yet in this session | Send a message |
 | No `cache …` | No response yet, or the provider doesn't report caching | Send a message |
 | No `usage …` | Not on a Claude subscription (API key, Bedrock, Vertex send no `rate_limits`), or no response yet | Expected there; send a message otherwise |
-| `usage` in red | Over 85 % of the current session's limit | Wait for the `↻` reset, or check `/usage` |
+| `usage` or `wk` in red | Over 85 % of the session or weekly limit | Wait for the `↻` reset, or check `/usage` |
 | `cache cold` | The prompt cache TTL passed since the last response | Nothing; the next message rebuilds it |
 | `aws EXPIRED` | The credentials found have expired | Log in again (`aws sso login`, your credential helper, …) |
 | `no-aws` | No expiry found: no AWS login, or static keys | Expected without AWS; set `"aws": {"mode": "off"}` to hide it |
@@ -55,7 +55,7 @@ The standard install writes no config. Write only the keys the user asked to cha
 {
   "segments": ["model", "context", "cost", "usage", "duration", "lines", "cache", "aws", "git", "session"],
   "drop_order": ["session", "lines", "duration", "agents", "cost", "usage", "cache", "aws"],
-  "usage_week": false,
+  "usage_week": true,
   "branch_max": 28,
   "session_max": 24,
   "agent_fresh_secs": 45,

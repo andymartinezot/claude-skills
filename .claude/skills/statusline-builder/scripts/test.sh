@@ -59,11 +59,11 @@ JSON
 echo "== main status line"
 run "1 full payload" "$(full "$T/repo")" "$T/repo"
 # golden: the exact default line, segment for segment. Change it only on purpose.
-GOLDEN='Opus high │ ctx 63% │ $1.23 │ usage 41% ↻3h05m │ ⏱ 21m │ +120 −8 │ cache warm 3m │ aws 45m │ repo ⎇ main ↑2 │ fix login flow'
+GOLDEN='Opus high │ ctx 63% │ $1.23 │ usage 41% ↻3h05m · wk 12% │ ⏱ 21m │ +120 −8 │ cache warm 3m │ aws 45m │ repo ⎇ main ↑2 │ fix login flow'
 plain_out="$(sed $'s/\033\\[[0-9;]*m//g' <<<"$OUT")"
 [[ "$plain_out" == "$GOLDEN" ]] && echo "PASS  golden default line" || { echo "FAIL  golden: expected '$GOLDEN'"; fails=$((fails + 1)); }
 lacks "full (1M window ignores exceeds_200k)" "63%!"
-lacks "full (no weekly by default)" "wk 12%"
+run "usage, weekly only" '{"rate_limits":{"seven_day":{"used_percentage":30}}}'; has "weekly only" "usage wk 30%"
 run "usage absent (Bedrock)" '{"cost":{"total_cost_usd":0.5}}'; lacks "no rate_limits" "usage"
 run "usage high, no reset" '{"rate_limits":{"five_hour":{"used_percentage":91}}}'; has "usage high" "usage 91%"; lacks "no reset" "↻"
 run "2 {}" '{}'
@@ -89,8 +89,8 @@ has "narrow keeps git" "⎇ main"
 echo '{"segments":["model","context","newline","git"]}' > "$HOME/.claude/statusline.json"
 run "config: two rows" "$(full "$T/repo")" "$T/repo"
 [[ $(wc -l <<<"$OUT") -eq 2 ]] || { echo "FAIL  two rows: got $(wc -l <<<"$OUT")"; fails=$((fails + 1)); }
-echo '{"aws":{"mode":"auto"},"usage_week":true}' > "$HOME/.claude/statusline.json"
-AWS_PROFILE= run "config: aws auto, weekly" "$(full "$T/repo")" "$T/repo"; lacks "aws auto" "aws"; has "weekly" "wk 12%"
+echo '{"aws":{"mode":"auto"},"usage_week":false}' > "$HOME/.claude/statusline.json"
+AWS_PROFILE= run "config: aws auto, no weekly" "$(full "$T/repo")" "$T/repo"; lacks "aws auto" "aws"; lacks "no weekly" "wk 12%"
 echo 'not json' > "$HOME/.claude/statusline.json"
 run "config: broken file" '{}'; has "broken config" "ctx --"
 rm -f "$HOME/.claude/statusline.json"

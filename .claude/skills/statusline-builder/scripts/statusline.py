@@ -3,13 +3,13 @@
 
 Default output (one row, always this order):
 
-  Opus 5.5 high │ ctx 13% │ $3.62 │ usage 7% ↻3h05m │ ⏱ 78h09m │ +180 −0 │ cache cold │ aws 1h37m │ no-git │ session-name
+  Opus 5.5 high │ ctx 13% │ $3.62 │ usage 7% ↻3h05m · wk 1% │ ⏱ 78h09m │ +180 −0 │ cache cold │ aws 1h37m │ no-git │ session-name
 
 Segments (DEFAULTS["segments"] is the default line; override in ~/.claude/statusline.json):
   model    model name, fast, effort level
   context  ctx NN%, green / yellow / red
   cost     session cost
-  usage    plan usage for the current session (5-hour window) and time to reset, as /usage shows
+  usage    plan usage as /usage shows it: current session (5-hour window), time to reset, current week
   duration session wall-clock time
   lines    lines added / removed this session
   cache    prompt cache: "cache warm 58m" until it goes cold, or "cache cold"
@@ -49,7 +49,7 @@ DEFAULTS = {
     "session_max": 24,
     "agent_fresh_secs": 45,   # a log touched more recently than this = agent still working
     "cache_warn_secs": 120,   # cache countdown turns yellow below this
-    "usage_week": False,      # true: also show the weekly limit, "· wk NN%"
+    "usage_week": True,       # false: hide the weekly limit ("· wk NN%")
     "aws": {
         "mode": "always",     # always: "no-aws" when no expiry is found | auto: only with CLAUDE_CODE_USE_BEDROCK or AWS_PROFILE | off
         "warn_secs": 3600,
@@ -159,20 +159,23 @@ def _usage_colour(pct):
 
 
 def seg_usage(d, cfg):
-    """Plan usage, as /usage shows it: the current session (5-hour window)."""
+    """Plan usage, as /usage shows it: current session (5-hour window) and current week."""
     rl = d.get("rate_limits") or {}  # absent on some providers (e.g. Bedrock)
     five = rl.get("five_hour") or {}
+    bits = []
     pct = five.get("used_percentage")
-    if not isinstance(pct, (int, float)):
-        return None
-    out = f"{_usage_colour(pct)}usage {pct:.0f}%{RESET}"
-    reset = five.get("resets_at")
-    if isinstance(reset, (int, float)) and reset > time.time():
-        out += f" {GRAY}↻{fmt_secs(reset - time.time())}{RESET}"
+    if isinstance(pct, (int, float)):
+        s = f"{_usage_colour(pct)}{pct:.0f}%{RESET}"
+        reset = five.get("resets_at")
+        if isinstance(reset, (int, float)) and reset > time.time():
+            s += f" {GRAY}↻{fmt_secs(reset - time.time())}{RESET}"
+        bits.append(s)
     week = (rl.get("seven_day") or {}).get("used_percentage")
     if cfg.get("usage_week") and isinstance(week, (int, float)):
-        out += f" {GRAY}·{RESET} {_usage_colour(week)}wk {week:.0f}%{RESET}"
-    return out
+        bits.append(f"{_usage_colour(week)}wk {week:.0f}%{RESET}")
+    if not bits:
+        return None
+    return f"{GRAY}usage{RESET} " + f" {GRAY}·{RESET} ".join(bits)
 
 
 def seg_duration(d, cfg):

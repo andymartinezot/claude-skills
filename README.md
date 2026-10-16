@@ -54,7 +54,7 @@ ln -s "$PWD/.claude/skills/adr" ~/.claude/skills/adr
 Every install renders the same line:
 
 ```
-Opus 5.5 high │ ctx 13% │ $3.62 │ usage 7% ↻3h05m │ ⏱ 78h09m │ +180 −0 │ cache cold │ aws 1h37m │ no-git │ ticket-validator-session
+Opus 5.5 high │ ctx 13% │ $3.62 │ usage 7% ↻3h05m · wk 1% │ ⏱ 78h09m │ +180 −0 │ cache cold │ aws 1h37m │ no-git │ ticket-validator-session
 ```
 
 | Segment | Example | Meaning |
@@ -62,7 +62,7 @@ Opus 5.5 high │ ctx 13% │ $3.62 │ usage 7% ↻3h05m │ ⏱ 78h09m │ +18
 | model | `Opus 5.5 high` | Model and effort level |
 | context | `ctx 13%` | Context window used: green < 50 %, yellow < 80 %, red after |
 | cost | `$3.62` | Session cost |
-| usage | `usage 7% ↻3h05m` | Plan usage for the current session, as `/usage` shows it, and time until it resets (Claude subscriptions only) |
+| usage | `usage 7% ↻3h05m · wk 1%` | Plan usage as `/usage` shows it: current session %, time until it resets, and current week % (Claude subscriptions only) |
 | duration | `⏱ 78h09m` | Session wall-clock time |
 | lines | `+180 −0` | Lines added / removed |
 | cache | `cache warm 58m` / `cache cold` | Time until the prompt cache expires |
